@@ -7,6 +7,8 @@ on:
       - "**/*.go"
       - "go.mod"
       - "go.sum"
+      - ".github/workflows/*.yml"
+      - ".github/workflows/*.yaml"
   pull_request:
     paths:
       - "**/*.go"
@@ -17,10 +19,18 @@ on:
       out:
         description: "Output file name (.xlsx or .csv)"
         default: "exhibitors.xlsx"
+      args:
+        description: "Extra args for go run"
+        default: "-dump-html output/list.html -headful=false -timeout 600s"
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SCRAPER_FILE: s.go              # change if you renamed the scraper
+      OUT_FILE: ${{ github.event.inputs.out || 'exhibitors.xlsx' }}
+      EXTRA_ARGS: ${{ github.event.inputs.args || '-dump-html output/list.html -headful=false -timeout 600s' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -52,16 +62,26 @@ jobs:
           go mod tidy
 
       - name: Run scraper
-        run: |
-          mkdir -p output
-          go run s.go -out "output/${{ github.event.inputs.out || 'exhibitors.xlsx' }}" -headful=false
         env:
           CHROME_BIN: ${{ steps.chrome.outputs.chrome-path }}
+        run: |
+          mkdir -p output
+          go run "$SCRAPER_FILE" -out "output/$OUT_FILE" $EXTRA_ARGS
 
-      - name: Upload artifact
+      - name: Upload data artifact
         uses: actions/upload-artifact@v4
         with:
           name: exhibitors-data
           path: output/*
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload debug artifacts (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug
+          path: |
+            output/list.html
+            output/*.log
           retention-days: 7
