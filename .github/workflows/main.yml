@@ -1,15 +1,22 @@
 name: Scrape Exhibitors
 
 on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+  pull_request:
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
   workflow_dispatch:
     inputs:
       out:
         description: "Output file name (.xlsx or .csv)"
-        required: false
         default: "exhibitors.xlsx"
-  # Optional: run weekly at 03:00 UTC every Monday
-  # schedule:
-  #   - cron: "0 3 * * 1"
 
 jobs:
   scrape:
@@ -33,25 +40,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Install Chrome (for chromedp)
+      - id: chrome
+        name: Install Chrome (for chromedp)
         uses: browser-actions/setup-chrome@v1
         with:
           chrome-version: stable
 
-      - name: Ensure go.mod exists & tidy
+      - name: Ensure go.mod & tidy
         run: |
-          if [ ! -f go.mod ]; then go mod init github.com/${{ github.repository }}; fi
+          [ -f go.mod ] || go mod init github.com/${{ github.repository }}
           go mod tidy
 
       - name: Run scraper
         run: |
           mkdir -p output
-          go run s.go -out "output/${{ github.event.inputs.out || 'exhibitors.xlsx' }}" \
-            -headful=false
+          go run s.go -out "output/${{ github.event.inputs.out || 'exhibitors.xlsx' }}" -headful=false
         env:
-          # chromedp will find chrome from PATH provided by setup-chrome
-          # but you can force it if needed:
-          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+          CHROME_BIN: ${{ steps.chrome.outputs.chrome-path }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
